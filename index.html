@@ -1,0 +1,1585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Palantir 本体论建模</title>
+<meta name="description" content="一份关于 Palantir 本体论建模的学习科普资料：本体论的概念、三层结构、范式断裂，以及从三模型到十一大模型的工程实践。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ============ tokens ============ */
+:root{
+  --bg:#F4F6F8;
+  --surface:#FFFFFF;
+  --surface-2:#EBEFF3;
+  --ink:#0E141B;
+  --ink-2:#3C4854;
+  --muted:#6A7583;
+  --line:#DCE2E9;
+  --line-strong:#BFC9D3;
+  --accent:#17607A;
+  --accent-ink:#0D4356;
+  --accent-soft:#E1EDF2;
+  --mark:#A94E08;
+  --mark-soft:#FBF0E3;
+  --own:#5A5344;
+  --own-soft:#F2F0EA;
+  --shadow:0 1px 2px rgba(14,20,27,.05), 0 8px 24px -16px rgba(14,20,27,.22);
+  --topbar-h:56px;
+  --font-sans:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif;
+  --font-serif:'Noto Serif SC','Songti SC','Source Han Serif SC',Georgia,'Times New Roman',serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1015;
+    --surface:#121A21;
+    --surface-2:#18222B;
+    --ink:#E7EDF2;
+    --ink-2:#B6C2CD;
+    --muted:#8494A2;
+    --line:#22303B;
+    --line-strong:#33454F;
+    --accent:#57B6D4;
+    --accent-ink:#93D6EA;
+    --accent-soft:#0F2A34;
+    --mark:#E2A264;
+    --mark-soft:#2A2016;
+    --own:#B9AE97;
+    --own-soft:#1D1C18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1015;
+  --surface:#121A21;
+  --surface-2:#18222B;
+  --ink:#E7EDF2;
+  --ink-2:#B6C2CD;
+  --muted:#8494A2;
+  --line:#22303B;
+  --line-strong:#33454F;
+  --accent:#57B6D4;
+  --accent-ink:#93D6EA;
+  --accent-soft:#0F2A34;
+  --mark:#E2A264;
+  --mark-soft:#2A2016;
+  --own:#B9AE97;
+  --own-soft:#1D1C18;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.7);
+}
+
+/* ============ base ============ */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:16px;
+  line-height:1.78;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  padding-inline:max(18px, env(safe-area-inset-left));
+}
+[hidden]{display:none!important}
+img{max-width:100%}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%, transparent)}
+a:hover{border-bottom-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+h1,h2,h3,h4{font-family:var(--font-serif);font-weight:600;line-height:1.35;text-wrap:balance;margin:0}
+p{margin:0}
+strong{font-weight:700;color:var(--ink)}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:.1em .38em;word-break:break-word}
+hr{border:0;border-top:1px solid var(--line);margin:0}
+
+/* ============ topbar ============ */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  margin-inline:calc(-1 * max(18px, env(safe-area-inset-left)));
+  padding-inline:max(18px, env(safe-area-inset-left));
+  padding-top:env(safe-area-inset-top,0px);
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{
+  max-width:1220px;margin-inline:auto;
+  height:var(--topbar-h);
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+.brand{display:flex;align-items:baseline;gap:9px;min-width:0}
+.brand b{font-family:var(--font-serif);font-weight:600;font-size:15px;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand span{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.tgl{
+  flex:none;display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--surface);border:1px solid var(--line);
+  border-radius:999px;padding:6px 13px;cursor:pointer;transition:border-color .15s,color .15s;
+}
+.tgl:hover{border-color:var(--line-strong);color:var(--ink)}
+.tgl svg{width:13px;height:13px;flex:none}
+
+/* ============ layout ============ */
+.wrap{max-width:1220px;margin-inline:auto}
+.hero{padding-block:52px 42px;max-width:760px}
+.eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:20px;display:flex;align-items:center;gap:11px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--line);max-width:150px}
+.hero h1{font-size:clamp(31px,5.6vw,50px);letter-spacing:-.012em;line-height:1.16;margin-bottom:20px}
+.hero .lede{font-size:clamp(16px,2.1vw,18.5px);line-height:1.72;color:var(--ink-2);max-width:60ch}
+.hero .lede b{color:var(--ink);font-weight:500;box-shadow:inset 0 -.52em 0 var(--accent-soft)}
+.meta{
+  margin-top:30px;padding-top:20px;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;gap:10px 30px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em;
+}
+.meta b{color:var(--ink-2);font-weight:500}
+
+.cols{display:grid;grid-template-columns:212px minmax(0,1fr);gap:56px;align-items:start;padding-bottom:96px}
+
+/* toc */
+.toc{position:sticky;top:calc(var(--topbar-h) + env(safe-area-inset-top,0px) + 26px);font-size:13px}
+.toc-h{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);
+}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.toc a{
+  display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:baseline;
+  padding:6px 9px;border-radius:6px;border-bottom:0;color:var(--muted);
+  line-height:1.42;transition:background .14s,color .14s;
+}
+.toc a i{font-family:var(--font-mono);font-size:10.5px;font-style:normal;color:var(--line-strong);transition:color .14s}
+.toc a:hover{background:var(--surface-2);color:var(--ink-2)}
+.toc a:hover i{color:var(--muted)}
+.toc a.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
+.toc a.on i{color:var(--accent)}
+.toc .own-link a.on{background:var(--own-soft);color:var(--own)}
+.toc .own-link a.on i{color:var(--own)}
+
+/* content column */
+.content{min-width:0;max-width:74ch;display:flex;flex-direction:column;gap:76px}
+
+/* ============ sections ============ */
+.sec{display:flex;flex-direction:column;gap:20px;scroll-margin-top:calc(var(--topbar-h) + env(safe-area-inset-top,0px) + 24px)}
+.sec>h2{
+  font-size:clamp(23px,3.3vw,30px);letter-spacing:-.008em;
+  display:flex;flex-direction:column;gap:9px;padding-bottom:15px;border-bottom:2px solid var(--ink);
+}
+.sec>h2 em{
+  font-family:var(--font-mono);font-style:normal;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--accent);font-weight:400;
+}
+.sec h3{
+  font-size:18.5px;margin-top:16px;color:var(--ink);
+  display:flex;align-items:baseline;gap:10px;
+}
+.sec h3::before{
+  content:"";flex:none;width:5px;height:5px;border-radius:50%;
+  background:var(--accent);transform:translateY(-3px);
+}
+.sec h4{font-size:15.5px;color:var(--ink-2);font-weight:600;margin-top:8px}
+.sec p{color:var(--ink-2)}
+.sec ul,.sec ol{margin:0;padding-left:1.35em;color:var(--ink-2);display:flex;flex-direction:column;gap:7px}
+.sec li::marker{color:var(--accent)}
+.sec li>strong:first-child{color:var(--ink)}
+
+/* callouts */
+.note{
+  padding:17px 20px;border-left:3px solid var(--accent);background:var(--accent-soft);
+  border-radius:0 8px 8px 0;color:var(--ink-2);font-size:15px;
+}
+.note>strong:first-child{display:block;color:var(--accent-ink);margin-bottom:5px;font-weight:700}
+.warn{
+  padding:17px 20px;border-left:3px solid var(--mark);background:var(--mark-soft);
+  border-radius:0 8px 8px 0;color:var(--ink-2);font-size:15px;
+}
+.warn>strong:first-child{display:block;color:var(--mark);margin-bottom:5px;font-weight:700}
+.quote{
+  font-family:var(--font-serif);font-size:17.5px;line-height:1.65;color:var(--ink);
+  padding:20px 0 20px 24px;border-left:3px solid var(--line-strong);
+}
+.quote b{color:var(--accent-ink);font-weight:700}
+
+/* tables */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:440px}
+th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+thead th{
+  background:var(--surface-2);font-family:var(--font-mono);font-weight:500;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--muted);white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:color-mix(in srgb,var(--accent-soft) 45%, transparent)}
+td:first-child{color:var(--ink);font-weight:500}
+td code{white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+
+/* cards */
+.cards{display:grid;gap:14px}
+.cards.c3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.cards.c2{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:18px 19px;display:flex;flex-direction:column;gap:8px;
+}
+.card .k{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);
+}
+.card h4{font-size:15.5px;color:var(--ink);margin:0}
+.card p{font-size:14px;line-height:1.68;color:var(--muted)}
+.card.hi{border-color:var(--accent);box-shadow:var(--shadow)}
+
+/* layer stack */
+.stack{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.layer{display:grid;grid-template-columns:78px 200px 1fr;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);align-items:baseline;font-size:14px}
+.layer:last-child{border-bottom:0}
+.layer .code{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent);white-space:nowrap}
+.layer .nm{color:var(--ink);font-weight:500}
+.layer .ds{color:var(--muted);font-size:13.5px}
+.layer.base{background:var(--surface-2)}
+.layer.base .code{color:var(--muted)}
+.side{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:2px}
+.side .card{border-style:dashed;border-color:var(--line-strong)}
+
+/* timeline */
+.tl{display:flex;flex-direction:column;position:relative;padding-left:32px}
+.tl::before{content:"";position:absolute;left:9px;top:9px;bottom:9px;width:1px;background:var(--line-strong)}
+.tl-i{position:relative;padding-bottom:26px}
+.tl-i:last-child{padding-bottom:0}
+.tl-i::before{
+  content:"";position:absolute;left:-28px;top:8px;width:9px;height:9px;border-radius:50%;
+  background:var(--bg);border:2px solid var(--accent);
+}
+.tl-i .v{
+  font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--accent);
+  letter-spacing:.05em;margin-bottom:3px;
+}
+.tl-i h4{font-size:16px;color:var(--ink);margin:0 0 5px}
+.tl-i p{font-size:14.5px;color:var(--muted);line-height:1.66}
+.tl-i p b{color:var(--ink-2);font-weight:500}
+
+/* decay gradient */
+.grad{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.gi{
+  border:1px solid var(--line);border-radius:9px;padding:14px 15px;background:var(--surface);
+  display:flex;flex-direction:column;gap:6px;position:relative;
+}
+.gi:nth-child(1){border-left:4px solid var(--accent)}
+.gi:nth-child(2){border-left:4px solid color-mix(in srgb,var(--accent) 62%, var(--line))}
+.gi:nth-child(3){border-left:4px solid color-mix(in srgb,var(--accent) 32%, var(--line))}
+.gi:nth-child(4){border-left:4px solid var(--line-strong);background:var(--surface-2)}
+.gi .gt{font-size:14.5px;font-weight:500;color:var(--ink)}
+.gi .gd{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.gi .gs{font-size:13px;color:var(--muted);line-height:1.55}
+
+/* formula */
+.formula{
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:11px;
+  padding:26px 24px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow);
+}
+.formula .ft{font-family:var(--font-serif);font-size:clamp(16px,2.4vw,20px);line-height:1.6;color:var(--ink);text-align:center}
+.formula .ft b{color:var(--accent-ink)}
+.formula .fb{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.formula .fb>div{border-top:2px solid var(--line-strong);padding-top:11px}
+.formula .fb .n{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:5px}
+.formula .fb p{font-size:13.5px;color:var(--ink-2);line-height:1.62}
+
+/* own-framework chapter */
+.own-chap{
+  background:var(--own-soft);border:1px solid var(--line);border-radius:12px;
+  padding:clamp(20px,3.4vw,32px);display:flex;flex-direction:column;gap:22px;
+}
+.own-chap>h2{
+  font-size:clamp(23px,3.3vw,30px);display:flex;flex-direction:column;gap:9px;
+  padding-bottom:15px;border-bottom:2px solid var(--own);
+}
+.own-chap>h2 em{font-family:var(--font-mono);font-style:normal;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--own);font-weight:400}
+.own-badge{
+  align-self:flex-start;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--own);border:1px dashed var(--own);
+  border-radius:999px;padding:5px 12px;
+}
+.own-chap h3{display:flex;align-items:baseline;gap:10px;font-size:18.5px;margin-top:12px}
+.own-chap h3::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;background:var(--own);transform:translateY(-3px)}
+.own-chap p,.own-chap li{color:var(--ink-2)}
+.own-chap ul,.own-chap ol{margin:0;padding-left:1.35em;display:flex;flex-direction:column;gap:7px}
+.own-chap .tw{background:var(--surface)}
+.own-chap .note{background:color-mix(in srgb,var(--surface) 70%, var(--own-soft));border-left-color:var(--own)}
+.own-chap .note>strong:first-child{color:var(--own)}
+
+/* red lines */
+.redlines{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.rl{display:grid;grid-template-columns:34px minmax(0,1fr);gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);align-items:baseline}
+.rl:last-child{border-bottom:0}
+.rl .i{font-family:var(--font-mono);font-size:12px;color:var(--mark);font-weight:500}
+.rl b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:2px}
+.rl span{font-size:13.5px;color:var(--muted);line-height:1.6}
+
+/* pre / code block */
+pre{
+  margin:0;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+  padding:16px 18px;overflow-x:auto;font-family:var(--font-mono);font-size:12.5px;
+  line-height:1.72;color:var(--ink-2);
+}
+
+/* details */
+details{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+summary{
+  cursor:pointer;padding:14px 18px;font-family:var(--font-mono);font-size:11.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);list-style:none;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-size:15px;color:var(--accent)}
+details[open] summary::after{content:"–"}
+details[open] summary{border-bottom:1px solid var(--line)}
+.dbody{padding:16px 18px}
+
+/* footer */
+.foot{border-top:1px solid var(--line);padding-block:34px 60px;max-width:74ch}
+.foot p{font-size:13.5px;color:var(--muted);line-height:1.75}
+.foot p+p{margin-top:10px}
+
+@media (max-width:1000px){
+  .cols{grid-template-columns:1fr;gap:0}
+  .toc{display:none}
+  .content{gap:62px;max-width:none}
+  .hero{padding-block:38px 32px}
+}
+@media (max-width:560px){
+  body{font-size:15.5px}
+  .layer{grid-template-columns:66px 1fr;gap:6px 12px}
+  .layer .ds{grid-column:1/-1;padding-left:0}
+  .formula{padding:20px 17px}
+  .content{gap:52px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <b>Palantir 本体论建模</b>
+      <span>学习科普</span>
+    </div>
+    <button class="tgl" id="theme" type="button" aria-label="切换深浅色主题">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <span id="theme-label">主题</span>
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">本体论的概念 · 项目实践</div>
+    <h1>从「存在」到可执行的本体</h1>
+    <p class="lede">
+      AI 落地总差一口气，差在 <b>「经验在系统外」</b> —— 系统只录入决策结果，不产生决策过程。
+      本文讲清两件事：<b>本体论到底是什么</b>，以及 <b>Palantir 如何把它变成一套可运行的工程体系</b>。
+    </p>
+    <div class="meta">
+      <span><b>8</b> 章</span>
+      <span><b>11</b> 个建模模型</span>
+      <span><b>27</b> 篇参考文章</span>
+      <span>阅读约 <b>45</b> 分钟</span>
+    </div>
+  </div>
+
+  <div class="cols">
+
+    <nav class="toc" aria-label="目录">
+      <div class="toc-h">目录</div>
+      <ol>
+        <li><a href="#c1"><i>01</i><span>引子：AI 落地为什么总差一口气</span></a></li>
+        <li><a href="#c2"><i>02</i><span>本体论是什么</span></a></li>
+        <li><a href="#c3"><i>03</i><span>经典工具栈：能做什么，卡在哪</span></a></li>
+        <li><a href="#c4"><i>04</i><span>Palantir 的三层结构与范式断裂</span></a></li>
+        <li><a href="#c5"><i>05</i><span>产品脉络：Foundry 与 AIP</span></a></li>
+        <li class="own-link"><a href="#c6"><i>06</i><span>自研规范：三模型到十一大模型</span></a></li>
+        <li><a href="#c7"><i>07</i><span>项目实践</span></a></li>
+        <li><a href="#c8"><i>08</i><span>学习方法与常见误区</span></a></li>
+        <li><a href="#ap"><i>—</i><span>附录：术语 · 参考文章</span></a></li>
+      </ol>
+    </nav>
+
+    <main class="content">
+
+      <!-- ================= 1 ================= -->
+      <section class="sec" id="c1">
+        <h2><em>Chapter 01</em>引子：AI 落地为什么总差一口气</h2>
+
+        <p>先看三个每天都在发生的场景。它们看起来毫不相干，但缺的是同一样东西。</p>
+
+        <div class="cards c3">
+          <div class="card">
+            <div class="k">场景一</div>
+            <h4>BI 只会告警，不会决策</h4>
+            <p>营收连续三个月下降，BI 弹出告警。然后呢？然后经营团队开三天会，把供应链流程从头梳理一遍才能定出动作。<strong>分析决策发生在系统外。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">场景二</div>
+            <h4>系统只录结论，不给结论</h4>
+            <p>关键物料供货中断时，引入替代物料、调货、还是调安全库存？系统有三个功能，但不告诉你用哪个。真正做判断的是那个做了十五年的老采购员。</p>
+          </div>
+          <div class="card">
+            <div class="k">场景三</div>
+            <h4>大模型能说，但数字靠不住</h4>
+            <p>问它「上季度毛利为什么掉 3 个点」，它写得出漂亮报告 —— 但数字是编的。给它数据库，它算错；给它语义，它天马行空。</p>
+          </div>
+        </div>
+
+        <h3>问题的公共内核</h3>
+        <p>把三个场景抽象一下，会看到同一个空缺：</p>
+        <pre>场景与问题  →  【思考与决策过程】  →  系统里的操作结果
+                    ↑
+              这一段，现在是人在做</pre>
+
+        <p>传统 IT 建设把端到端流程<strong>分而治之</strong>，拆进了 ERP、SCM、CRM 一个个功能点里。结果是：<strong>系统里没有一个叫「端到端流程」的功能，也没有任何地方写明业务功能是如何支撑业务流程的。</strong></p>
+
+        <div class="note">
+          <strong>关键结论</strong>
+          AI + 本体要解决的，既不是「场景问题」，也不是「系统录入」，而是这两者之间那个被跳过的<strong>「分析与决策」</strong>。
+        </div>
+
+        <p>要让 AI 接住这一段，它需要两样东西：</p>
+        <ol>
+          <li><strong>一份完整的业务语义</strong> —— 业务对象是什么、彼此怎么关联、一个动作会引发什么连锁反应；</li>
+          <li><strong>一个决策认知框架</strong> —— 有经验的人是怎么想这个问题的，方法论本身。</li>
+        </ol>
+        <p>这两样东西的载体，就是<strong>本体模型</strong>。</p>
+
+        <h3>Palantir 的定位：不生产水，做水的搬运工</h3>
+        <p>它早期是一家做<strong>数据集成</strong>的公司 —— 不是主数据，不是数据中台，不是传统 BI。它要做的不是实现一个业务系统功能，也不是实现一个数据中台的指标，而是<strong>把你游离在系统外的经验建模、显性化</strong>，结合已有系统的数据与大模型的推理能力，帮你做分析决策。</p>
+
+        <div class="tw">
+          <table>
+            <thead><tr><th>常见误解</th><th>实际情况</th></tr></thead>
+            <tbody>
+              <tr><td>它是 BI 公司</td><td>不是。早期核心是<strong>数据集成</strong></td></tr>
+              <tr><td>它是数据中台</td><td>不是。企业已有中台，它可以对接；没有，它可以连中台带分析一起建</td></tr>
+              <tr><td>它要替换你的 ERP</td><td>不。它<strong>最大化保留</strong>你已有的 OLTP / OLAP 资产，在两者之间架桥</td></tr>
+              <tr><td>它自己执行业务流程</td><td>不。它不直接参与业务和流程，是在系统外挂一层</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>由此推出一个反直觉的判断：<strong>「回写」不是重点。</strong>把改进建议写回源系统本身没有任何技术含量。真正的重点是 <em>模型 + 数据 + 大模型推理 → 得出比有经验员工更优的改进建议</em>。</p>
+
+        <div class="quote">
+          本体论不是万能的。很多精确化的问题，不需要本体就能很好地解决。<br><br>
+          企业要上本体论，先问自己：日常业务里有哪些痛点，是传统 IT 应用难以解决的？有哪些是 AI 赋能时因为幻觉太重而无法满足的？有哪些是<strong>极度依赖有经验员工</strong>才能解决的？<br><br>
+          <strong>这些，往往才是需要「本体模型 + AI」的关键点。</strong>
+        </div>
+      </section>
+
+      <!-- ================= 2 ================= -->
+      <section class="sec" id="c2">
+        <h2><em>Chapter 02</em>本体论是什么</h2>
+
+        <h3>哲学源头：Ontology 本来在问什么</h3>
+        <p>「本体论」的词根是希腊语的 <em>on</em>（存在）与 <em>logos</em>（道 / 学）。它讨论的不是「世界是什么样的」，而是更底层的问题：<strong>「存在」本身意味着什么？</strong></p>
+
+        <div class="tw">
+          <table>
+            <thead><tr><th>阶段</th><th>代表</th><th>核心主张</th></tr></thead>
+            <tbody>
+              <tr><td>起点</td><td>巴门尼德</td><td>「存在者存在，不存在者不存在」—— 第一次把「存在」当作可思考的对象</td></tr>
+              <tr><td>奠基</td><td>亚里士多德《形而上学》</td><td>研究「作为存在的存在」，提出实体、范畴、四因说</td></tr>
+              <tr><td>转折</td><td>笛卡尔 / 康德</td><td>从「世界是什么」转向「我何以能认识世界」</td></tr>
+              <tr><td>集大成</td><td>海德格尔《存在与时间》</td><td>重提「存在的意义」问题，指出两千年本体论遗忘了存在本身</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>这条线索可以整理成「奠基者 → 集大成者」的三组对照：</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>领域</th><th>奠基者</th><th>集大成者</th><th>核心问题</th></tr></thead>
+            <tbody>
+              <tr><td>逻辑</td><td>亚里士多德</td><td>黑格尔</td><td>思维如何有效地推演</td></tr>
+              <tr><td>认识论</td><td>培根</td><td>康德</td><td>我们如何认识世界</td></tr>
+              <tr><td>本体论</td><td>巴门尼德</td><td>海德格尔</td><td>存在本身是什么</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>两个核心研究点 —— 它们正是工程化本体论的钥匙</h4>
+        <div class="cards c2">
+          <div class="card hi">
+            <div class="k">研究点一</div>
+            <h4>区分「存在」与「本质」</h4>
+            <p>一件事物「存在」是一回事，它「是什么」是另一回事。</p>
+            <p><strong>→ 工程上：实例（Instance）与类型（Type）是两回事。</strong></p>
+          </div>
+          <div class="card hi">
+            <div class="k">研究点二</div>
+            <h4>区分「存在本身」与「存在者」</h4>
+            <p>「存在」是持续发生的过程，「存在者」是这个过程中显现出来的东西。</p>
+            <p><strong>→ 工程上：行为 / 事件（过程）与对象状态（结果）是两回事。</strong></p>
+          </div>
+        </div>
+        <p>记住这两条 —— 后面讲「行为模型和事件模型为什么必须拆开」「为什么需要场景模型」时，你会发现它们是同一个洞见在工程层面的两次落地。</p>
+
+        <h4>本质能不能被触达？三种立场，三种期待值</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>立场</th><th>代表</th><th>主张</th><th>工程隐喻</th></tr></thead>
+            <tbody>
+              <tr><td>有本质，且可触达</td><td>柏拉图、黑格尔</td><td>本质客观存在，理性可以把握</td><td>可以建出完备本体，推理机能推出所有真理</td></tr>
+              <tr><td>有本质，但不可触达</td><td>康德</td><td>物自体不可知，只能认识现象</td><td>本体只能逼近业务真相，永远是模型而非现实</td></tr>
+              <tr><td>根本没有本质</td><td>奥卡姆、萨特</td><td>只有个别事物，「本质」只是名字</td><td>本体就是一套约定俗成的命名系统</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这三者不是学术花边，它们<strong>直接决定你对本体的期待值</strong>。站在柏拉图那侧，你会觉得「模型没建全」是失败；站在康德那侧，你会接受「模型永远不完备，但足够好用」。一条重要的工程戒律正是后者的推论：<strong>本体要「精确」，但不必「完备」。</strong></p>
+
+        <h4>海德格尔《存在与时间》：概念 → 工程翻译</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>哲学概念</th><th>一句话解释</th><th>翻译成工程语言</th></tr></thead>
+            <tbody>
+              <tr><td>存在论差异</td><td>存在 ≠ 存在者，二者不能混为一谈</td><td>类型系统 ≠ 实例数据；Schema ≠ Data</td></tr>
+              <tr><td>此在（Dasein）</td><td>唯有人的存在会追问自己的存在</td><td>系统的使用者 / 决策者，不是被建模的客体</td></tr>
+              <tr><td>上手状态</td><td>工具顺手时你是「忘我」地在用，不觉得它是个东西</td><td>好的系统是「透明」的，用户感觉不到系统</td></tr>
+              <tr><td>现成状态</td><td>工具坏了你才停下来「看」它</td><td>系统出问题、报表对不上时，模型才被审视</td></tr>
+              <tr><td>因缘整体性</td><td>工具从不孤立，它处在「为了…而…」的关联网中</td><td><strong>对象从不孤立，它处在一张关系与目的之网里</strong></td></tr>
+              <tr><td>时间性</td><td>人同时活在既有处境、未来可能和此刻决断中</td><td>数据的历史态、计划的未来态、决策的当前态</td></tr>
+              <tr><td>向死而生</td><td>有限性让选择变得紧迫、真实</td><td>资源约束与截止期限，才让「优化」有意义</td></tr>
+              <tr><td>常人 / 沉沦</td><td>日常中我们按「大家怎么做」活着</td><td>组织里的路径依赖与行业惯例</td></tr>
+              <tr><td>畏（Angst）</td><td>一切意义悬空时的基本情绪</td><td>模型失效、范式转换时的失重感</td></tr>
+              <tr><td>先行的决断</td><td>直面有限性后做出的本真选择</td><td><strong>在不确定中依然下判断 —— 这正是决策的本质</strong></td></tr>
+              <tr><td>解蔽（Aletheia）</td><td>真理是「去蔽」，是把被遮住的东西露出来</td><td><strong>分析的本质：把隐藏的因果揭示出来</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="note">
+          <strong>一句话概括</strong>
+          海德格尔告诉我们，「存在」不是一个静态的名词表，而是一张<strong>因缘关联的网络 + 一个时间性展开的过程</strong>。
+          如果一个本体模型最后是一棵树，那它在哲学上就已经错了 —— 更不用说在工程上。
+        </div>
+
+        <h3>信息科学的本体论：一句被引用最多的定义</h3>
+        <p>1998 年 Studer 等人给出了至今最常被引用的定义：</p>
+        <div class="quote">
+          <b>本体是「共享概念模型的明确的形式化规范说明」。</b>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>要素</th><th>含义</th><th>工程上要问的问题</th></tr></thead>
+            <tbody>
+              <tr><td>概念化</td><td>对世界的一种抽象模型</td><td>你打算把业务世界的哪些侧面建进来？</td></tr>
+              <tr><td>明确</td><td>概念和约束都被无歧义地定义</td><td>你的「订单」和财务的「订单」是同一个吗？</td></tr>
+              <tr><td>形式化</td><td>机器可读、可处理</td><td>是画在图上的图，还是能被程序解析的文件？</td></tr>
+              <tr><td>共享</td><td>是共识，不是个人的</td><td>业务方、开发方、AI 用的是同一套词吗？</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>「共享」这一条最容易被忽略，也最要命。</strong>一个只有建模者自己能看懂的模型，不是本体，只是笔记。</p>
+
+        <h3>TBox 与 ABox：本体和知识图谱到底什么关系</h3>
+        <p>这是初学者最容易混淆的一对概念。</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th></th><th>TBox（Terminological Box）</th><th>ABox（Assertional Box）</th></tr></thead>
+            <tbody>
+              <tr><td>内容</td><td>概念、属性、关系、公理</td><td>具体的实例与断言</td></tr>
+              <tr><td>别名</td><td><strong>模式 / Schema / 本体</strong></td><td><strong>数据 / 实例 / 知识图谱</strong></td></tr>
+              <tr><td>例子</td><td>「订单是一种单据，订单有客户」</td><td>「订单 #10086 属于客户张三，金额 12,000」</td></tr>
+              <tr><td>谁定</td><td>人（领域专家 + 建模者）</td><td>系统运行中产生</td></tr>
+              <tr><td>变化频率</td><td>慢，版本化管理</td><td>快，持续写入</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>一句话：<strong>本体是「模具」，知识图谱是「用这个模具压出来的零件」。</strong></p>
+
+        <div class="warn">
+          <strong>一个反复出现的失败模式</strong>
+          很多人号称在做本体建模，最后交付的其实是一棵<strong>目录树</strong>（一级分类 → 二级分类 → 三级分类），而不是一张<strong>互相约束的网</strong>。
+          树状结构用传统的面向对象建模就够了，不需要本体。只有当你建出的模型里，对象、行为、规则彼此影响、彼此制约，形成闭环回路，后面的 AI 推理才有意义。
+        </div>
+      </section>
+
+      <!-- ================= 3 ================= -->
+      <section class="sec" id="c3">
+        <h2><em>Chapter 03</em>经典工具栈：能做什么，卡在哪</h2>
+        <p>理解 Palantir 之前，必须先理解它<strong>绕开了什么</strong>。否则你会掉进「用 OWL 去解释 Palantir」的方法论陷阱。</p>
+
+        <h3>工具栈全景</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>层</th><th>标准 / 工具</th><th>干什么</th></tr></thead>
+            <tbody>
+              <tr><td>数据模型</td><td>RDF、RDFS</td><td>用「主语-谓语-宾语」表达事实；定义类与属性的基本层级</td></tr>
+              <tr><td>本体语言</td><td><strong>OWL / OWL 2</strong></td><td>类、对象属性、数据属性、个体；支持公理与形式语义</td></tr>
+              <tr><td>OWL 2 子语言</td><td>EL / QL / RL 三个 Profile</td><td>用表达力换推理效率：EL 适合大本体，QL 适合查询重写，RL 适合规则引擎实现</td></tr>
+              <tr><td>高级特性</td><td>属性链 Property Chain</td><td>例：<code>hasParent ∘ hasBrother → hasUncle</code>（父亲的兄弟是叔叔）</td></tr>
+              <tr><td>规则</td><td><strong>SWRL</strong></td><td>在 OWL 之上写「如果…则…」，<strong>能推导出新事实</strong></td></tr>
+              <tr><td>约束校验</td><td><strong>SHACL</strong>（2017 W3C 推荐标准）</td><td>闭世界下的形状约束；支持 SHACL-SPARQL 写复杂规则</td></tr>
+              <tr><td>查询</td><td>SPARQL</td><td>面向 RDF 图的查询语言</td></tr>
+              <tr><td>序列化</td><td>Turtle / RDF-XML / JSON-LD</td><td>人读用 Turtle，机器交换用后两者</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>一个容易被忽略的结构性矛盾：OWA 与 CWA 并存</h3>
+        <div class="cards c2">
+          <div class="card">
+            <div class="k">OWA · 开放世界假设</div>
+            <p>没说的事就是「不知道」，不是「不存在」。我暂时不知道张三有兄弟，不代表他没有。<br><br><strong>服务于逻辑完备性 —— 这是 OWL 的默认立场。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">CWA · 封闭世界假设</div>
+            <p>没说的事就是「不存在」。数据库里没有这条记录，就是没有。<br><br><strong>服务于校验与查询 —— 这是 SHACL 和 SQL 的立场。</strong></p>
+          </div>
+        </div>
+        <p>经典工具栈里，<strong>这两套互相冲突的假设同时存在</strong>。这不是设计缺陷，而是两拨人为了解决两类不同问题各自做的选择，最后被拼在了一起。理解这一点，你就理解了「经典栈为什么在落地时总拧巴」。</p>
+
+        <h3>推理的两副面孔</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th></th><th>演绎推理 Deduction</th><th>溯因推理 Abduction</th></tr></thead>
+            <tbody>
+              <tr><td>方向</td><td>一般 → 特殊</td><td>结果 → 最可能的原因</td></tr>
+              <tr><td>形式</td><td>所有人都会死；苏格拉底是人 → 苏格拉底会死</td><td>草地湿了 → 大概下过雨（也可能是洒水器）</td></tr>
+              <tr><td>结论性质</td><td><strong>必然</strong>，逻辑上可证明</td><td><strong>或然</strong>，带置信度，可被推翻</td></tr>
+              <tr><td>典型载体</td><td>OWL 推理机、SWRL、Datalog</td><td>诊断、根因分析、假设生成</td></tr>
+              <tr><td>对应 AI</td><td>符号主义、专家系统</td><td><strong>大模型的强项</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <strong>错位在哪里</strong>
+          经典本体论的主战场是<strong>演绎</strong>；而企业真正需要的决策，大多是<strong>溯因</strong>。这个错位，是后面一切范式断裂的根源。
+        </div>
+
+        <h3>工具选型对照</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>工具</th><th>定位</th><th>优势</th><th>短板</th></tr></thead>
+            <tbody>
+              <tr><td>Protégé</td><td>本体编辑器（斯坦福）</td><td>免费、生态好、OWL 支持完整、DL 推理机可插拔</td><td>面向<strong>静态本体</strong>；SHACL 支持弱；不做数据集成；不产生应用</td></tr>
+              <tr><td>GraphDB</td><td>原生 RDF 三元组库</td><td>内置推理机，支持前向 / 后向链；SPARQL 完备</td><td>只解决「存 + 推 + 查」，行为 / 场景 / 应用层空白</td></tr>
+              <tr><td>Neo4j</td><td>属性图数据库</td><td>图遍历性能极佳、生态成熟、开发者体验好</td><td><strong>不原生支持 OWL/SWRL</strong>，语义推理需中间件补齐；本质是图存储不是本体平台</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>经典栈的四个结构性困境</h3>
+        <ol>
+          <li><strong>落地鸿沟。</strong>纯 DL 本体很难直接对接生产数据流。OWL 的公理严谨性和「与真实数据库表 / API 直接映射」之间存在天然阻抗。<em>Palantir 的解法是：牺牲公理严谨性，换来与真实数据源的直接映射能力。</em></li>
+          <li><strong>假设冲突。</strong>OWA 与 CWA 同栈并存，导致「同一个模型，推理机说一致，校验器说违规」这类问题反复出现。</li>
+          <li><strong>只有名词，没有动词。</strong>OWL 描述世界<em>是什么样的</em>；但业务的本质是<em>发生了什么、应该做什么</em>。行为、事件、场景、流程在经典栈里没有一等公民的位置。</li>
+          <li><strong>范式失配。</strong>OWL/SWRL/SHACL 是为「封闭的、可公理化的语义系统」设计的，其设计哲学本身就<strong>排斥「允许置信度的动态推理」</strong>。这不是能力不足，是设计目标不同。</li>
+        </ol>
+
+        <div class="warn">
+          <strong>一个尖锐的判断</strong>
+          <strong>用经典本体论工具栈去逆向解释 Palantir，是一种方法论上的时代错位（anachronism）。</strong>
+          Palantir 绕开这套工具栈，不是因为他们不懂 Description Logic，而是因为 DL 推理机制本身就不是为这种混合场景设计的。
+        </div>
+
+        <div class="note">
+          <strong>但是 —— 另一面同样重要</strong>
+          即使在 AI 大模型下有新的本体应用范式，<strong>对传统的经典做法也必须了解清楚</strong>。不理解 OWL / SWRL / SHACL 的边界在哪，你就无法理解 Palantir 为什么那么设计。
+        </div>
+      </section>
+
+      <!-- ================= 4 ================= -->
+      <section class="sec" id="c4">
+        <h2><em>Chapter 04</em>Palantir 的三层结构与范式断裂</h2>
+
+        <h3>三层结构</h3>
+        <p>这是理解 Palantir 最核心的一张框架图。</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>层</th><th>回答的问题</th><th>核心构件</th><th>沉淀的是什么</th></tr></thead>
+            <tbody>
+              <tr><td>语义层</td><td>业务世界里<strong>有什么</strong></td><td>Object Type、Object Instance、Property、Primary Key、Link Type、Object Set</td><td>业务对象与关系（名词）</td></tr>
+              <tr><td>动能层</td><td>业务上<strong>做什么</strong></td><td>Action Type、Function、Workflow State</td><td>原子操作与计算（动词）</td></tr>
+              <tr><td>动态层</td><td>怎么做<strong>最好</strong></td><td>Scenario、Workflow &amp; Automations、模拟与比对</td><td><strong>经验、方法论、决策框架</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre>语义层  定义业务世界（有什么）
+   ↓
+动能层  驱动业务操作（做什么）
+   ↓
+动态层  优化业务决策（怎么做最好）</pre>
+
+        <div class="note">
+          <strong>最关键的洞察</strong>
+          真正最核心的「本体知识经验层」在<strong>动态层</strong> —— 也就是企业知识管理里说的核心经验、模式和方法论。
+          当动态层积累得足够多时，对 FDE（前置交付工程师）的依赖就越小，本体模型本身也就越具备自我进化、面对从未出现过的新场景<strong>「举一反三」</strong>的能力。
+        </div>
+
+        <h4>语义层构件速查</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>构件</th><th>含义</th><th>类比</th></tr></thead>
+            <tbody>
+              <tr><td>Object Type</td><td>对象类型（业务概念）</td><td>类 / 表结构</td></tr>
+              <tr><td>Object Instance</td><td>对象实例</td><td>一行数据 / 一个个体</td></tr>
+              <tr><td>Property</td><td>属性（带业务语义，不是裸字段）</td><td>字段</td></tr>
+              <tr><td>Primary Key</td><td>对象的唯一标识</td><td>主键</td></tr>
+              <tr><td>Link Type</td><td>连接两个 Object Type 的关系类型</td><td>外键 / 图的边</td></tr>
+              <tr><td>Object Set</td><td>对象集合，可作为分析和操作的输入</td><td>一个查询结果集</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>动态层：Scenario 沙箱推演</h4>
+        <p>Scenario 是一个在本体数据基础上创建的<strong>独立分支或沙盒</strong>。用户和 AI Agent 可以在里面自由模拟各种操作或变化（调整价格、改变供应链、切换供应商），观察其对<strong>整个业务模型</strong>的影响，<strong>而完全不触碰真实数据</strong>。可以应用一系列预定义的 Action 模拟不同策略，并<strong>并排比较结果</strong>，确定最优解。</p>
+
+        <p>从分析到固化，走三步：</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>步骤</th><th>做什么</th><th>载体</th></tr></thead>
+            <tbody>
+              <tr><td>1 · 探索与验证</td><td>在沙箱里用 Action + Function 做自由 What-if 分析，找到最优解</td><td>Scenario</td></tr>
+              <tr><td>2 · 抽象与模板化</td><td>把验证有效的逻辑抽象出来</td><td>Pipeline Builder 自定义函数；Workshop 保存 Scenario</td></tr>
+              <tr><td>3 · 编排与自动化</td><td>把模板化的逻辑模块编排成端到端流程</td><td>Workflows &amp; Automations</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>保存下来的 Scenario <strong>不依赖创建它的应用模块</strong>，可以在任何其他模块中加载复用 —— 相当于给分析结论建了一个快照。</p>
+
+        <div class="note">
+          <strong>为什么这一步如此关键</strong>
+          Palantir 的本体论并非让 AI 在空白画布上自由发挥，而是先由领域专家和工程师共同绘制一张精确的「业务地图」（本体），设定好「交通规则」（Action / Function）。AI 和人类用户在这张地图上做<strong>沙盘推演</strong>，所有行动都受地图和规则约束。这种设计确保 AI 的决策<strong>可解释、可控制、符合业务逻辑</strong>，而不是一个不可预测的黑盒。
+        </div>
+
+        <h3>它更像 OOAD / DDD，而不是 OWL</h3>
+        <p>静态建模层面，OWL 的 Class-Property-Relationship 与 Palantir 的 Object Type / Property / Link Type 几乎同构，都和 OOA 的类图高度相似。区别在两点：</p>
+        <ol>
+          <li>OWL 有<strong>公理化的推理能力</strong>（子类传递、属性链、一致性检查），走的是 Description Logic 路线；</li>
+          <li>Palantir 的 Object Type 更像一个「<strong>打了类型标签的数据库视图</strong>」，语义主要靠 Property 的命名和文档承载，<strong>背后没有强制的逻辑推理引擎在做开闭世界假设的演算</strong>。</li>
+        </ol>
+        <p><strong>结论：Palantir 在静态建模层面做了简化和工程化妥协 —— 牺牲 OWL 那种公理严谨性，换来与真实数据源的直接映射能力。</strong></p>
+
+        <h4>Action 与 Function 补上的两个「动词」</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>维度</th><th>传统 UML 用例</th><th>Palantir Action Type</th></tr></thead>
+            <tbody>
+              <tr><td>性质</td><td>文档性、描述性</td><td><strong>可执行、有副作用</strong></td></tr>
+              <tr><td>前置条件</td><td>文字描述</td><td>绑定：谁能做、什么状态下能做</td></tr>
+              <tr><td>执行逻辑</td><td>无</td><td>绑定：改变哪些 Object 的哪些 Property</td></tr>
+              <tr><td>后置</td><td>无</td><td>触发 Function 链</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>更准确的定位：<strong>Action 是「事件驱动架构里的 Command / Event，套了一层用例的外壳」</strong>。它把 OOA 里偏静态文档化的用例，变成了本体图谱上<strong>可以直接触发状态迁移的节点</strong>。</p>
+
+        <h4>Function 的两副面孔 —— 一个常被忽略的「语义断层」</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>类型</th><th>例子</th><th>性质</th><th>可解释性</th></tr></thead>
+            <tbody>
+              <tr><td>派生属性计算</td><td>「合同已开票金额 = Σ 发票金额」</td><td><strong>声明式</strong>，像规则引擎 / SHACL 规则扩展 / Drools 前向链</td><td>可解释、可追溯血缘</td></tr>
+              <tr><td>复杂业务逻辑 / 集成调用</td><td>调用支付网关、跑复杂优化算法</td><td><strong>图灵完备的代码</strong>，只是挂在了本体的节点位置上</td><td><strong>黑盒</strong>，可推理性已退化为普通函数调用</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>一旦引入第二类，Function 就不再是「从本体结构里可推导」的东西了。表面上它是本体的一部分，实际上它的可解释性、可推理性已经退化成普通函数调用。由此得到一条非常实用的判据 ——</p>
+
+        <h4>本体能力衰减梯度</h4>
+        <div class="grad">
+          <div class="gi">
+            <div class="gt">Object</div>
+            <div class="gd">真本体承载</div>
+            <div class="gs">强语义、强约束</div>
+          </div>
+          <div class="gi">
+            <div class="gt">Action</div>
+            <div class="gd">行为承载</div>
+            <div class="gs">事件语义、状态迁移</div>
+          </div>
+          <div class="gi">
+            <div class="gt">声明式 Function</div>
+            <div class="gd">规则承载</div>
+            <div class="gs">可解释、可追溯</div>
+          </div>
+          <div class="gi">
+            <div class="gt">命令式 Function</div>
+            <div class="gd">普通程序承载</div>
+            <div class="gs">黑盒，语义稀薄</div>
+          </div>
+        </div>
+        <p>越往右，本体语义越稀薄。<strong>做架构评审时，问一句「你这个能力挂在哪一档」，比问「你有没有本体」有用得多。</strong></p>
+
+        <h3>范式断裂：从「推理主体」到「上下文供给者」</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th></th><th>经典本体论路线</th><th>Palantir 混合路线</th></tr></thead>
+            <tbody>
+              <tr><td>链路</td><td>概念建模 → 公理约束编码 → DL 推理引擎演绎 → 一致性校验 → 静态知识图谱</td><td>本体语义层 → 确定性 Function → 知识图谱检索 → LLM 生成编排 → 融合输出</td></tr>
+              <tr><td>推理主体</td><td><strong>推理机</strong>（单一主体）</td><td><strong>没有单一主体</strong>，三种异质能力拼接</td></tr>
+              <tr><td>哲学根基</td><td>开放世界假设 + 公理化完备性</td><td>三种认识论立场的工程化共存</td></tr>
+              <tr><td>结论性质</td><td>逻辑上可证明、可解释、可回溯</td><td>混合：精确 / 结构化 / 概率生成</td></tr>
+              <tr><td>本体的角色</td><td><strong>推理主体</strong> —— 自己就是答案的来源</td><td><strong>上下文供给者</strong> —— 提供结构约束和语义骨架</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>右侧链路里三种能力的职责切分</h4>
+        <div class="cards c3">
+          <div class="card">
+            <div class="k">置信度 · 零</div>
+            <h4>确定性计算</h4>
+            <p>Function / 传统算法。SQL、统计算法、优化器。<strong>纯精确。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">置信度 · 结构化</div>
+            <h4>检索式推理</h4>
+            <p>基于知识图谱的关联查找、路径查询。有一定模糊匹配空间。</p>
+          </div>
+          <div class="card">
+            <div class="k">置信度 · 动态</div>
+            <h4>生成式推理</h4>
+            <p>LLM 基于上下文的归纳、类比、常识补全。<strong>真正的「允许置信度」部分。</strong></p>
+          </div>
+        </div>
+
+        <div class="warn">
+          <strong>一个角色反转</strong>
+          传统认知是「本体是结构，LLM 在结构上做推理」。但 Palantir 的真实运作机制是：<strong>LLM 做的不是本体推理，而是 Function 调用的编排（orchestration）。</strong>
+          LLM 负责理解意图 → 决定调用哪个 Function / 查询哪个 Object → 把结果组织成自然语言。精确计算这部分<strong>完全不经过 LLM 的「推理」</strong>，而是确定性代码执行后把结果喂回去。
+        </div>
+
+        <div class="quote">
+          Palantir 的本体不是用来被推理引擎「推」的，而是用来被 LLM 和算法「查」和「算」的。
+          它的角色从「推理主体」降级为了「上下文供给者」。<br><br>
+          <b>这个降级不是缺陷，反而是让本体能在 AI 原生架构里继续存活下去的关键适配。</b>
+        </div>
+        <p>本体作为承载体，从来没有真正「消失」—— 它只是从推理链条的<strong>终点</strong>（产出真理），退到了推理链条的<strong>入口</strong>（供给上下文）。</p>
+
+        <div class="note">
+          <strong>一个可操作的判据</strong>
+          判断一个系统是「经典本体驱动」还是「Palantir 式混合驱动」，不要看它是否画了 Object / Property 图谱，而要看<strong>推理结果的最终责任人是推理机、检索引擎，还是 LLM</strong>。
+          这个责任归属点，才是两种范式真正的分水岭。
+        </div>
+      </section>
+
+      <!-- ================= 5 ================= -->
+      <section class="sec" id="c5">
+        <h2><em>Chapter 05</em>产品脉络：Foundry 与 AIP</h2>
+        <p>把散落的线索收拢成一张全景图。产品细节请以官方文档为准，此处提供的是<strong>理解脉络</strong>。</p>
+
+        <h3>八大主干</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>#</th><th>主干</th><th>解决的问题</th></tr></thead>
+            <tbody>
+              <tr><td class="num">1</td><td>思想与定位</td><td>Palantir 到底是什么公司？本体论在其中扮演什么角色？</td></tr>
+              <tr><td class="num">2</td><td>核心语义模型</td><td>Object / Property / Link / Action / Function 怎么建</td></tr>
+              <tr><td class="num">3</td><td>数据与集成</td><td>数据怎么进来、怎么映射成对象、怎么做实体解析</td></tr>
+              <tr><td class="num">4</td><td>动作与工作流</td><td>操作怎么执行、状态怎么迁移、流程怎么编排</td></tr>
+              <tr><td class="num">5</td><td>安全与治理</td><td>权限怎么做、策略怎么动态生效、审计怎么留痕</td></tr>
+              <tr><td class="num">6</td><td>AIP 与 Agent</td><td>大模型怎么接入、工具怎么暴露、Agent 怎么规划</td></tr>
+              <tr><td class="num">7</td><td>应用与开发</td><td>应用怎么搭、代码怎么调、开发者接口是什么</td></tr>
+              <tr><td class="num">8</td><td>行业落地</td><td>不同行业的蓝图与实施路径</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>数据与语义的落地细节</h3>
+        <ul>
+          <li><strong>数据映射</strong>：把数据库表 / API / 文件映射成 Object Type 和 Property，是「物理世界」到「语义世界」的入口。</li>
+          <li><strong>实体解析 Entity Resolution</strong>：同一个客户在 CRM 里叫「张三」，在 ERP 里叫「Zhang San」，需要识别为同一个 Object Instance。<strong>这是数据集成公司的看家本领，也是本体能落地的地基。</strong></li>
+          <li><strong>Object Set</strong>：分析、操作、模拟的输入单位。你在 Palantir 里做的事，几乎都是「对一个 Object Set 做一些事」。</li>
+        </ul>
+
+        <h3>安全与治理</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>机制</th><th>作用</th></tr></thead>
+            <tbody>
+              <tr><td>Object Permission</td><td>对象级的访问控制 —— 谁能看 / 改哪些对象</td></tr>
+              <tr><td>Dynamic Policy</td><td>动态策略 —— 权限随上下文（时间、地点、对象状态、所属组织）变化</td></tr>
+              <tr><td>Audit</td><td>审计留痕 —— 谁在什么时候做了什么</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这一层是「可管控」原则的工程实现。在本体驱动的系统中，<strong>权限不是一个外挂模块，而是横切在模型所有层级上的约束</strong>。</p>
+
+        <h3>AIP 与 Agent</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>能力</th><th>作用</th></tr></thead>
+            <tbody>
+              <tr><td>AIP Grounding</td><td>把本体对象「接地」到 LLM 上下文，让模型知道业务世界里有什么</td></tr>
+              <tr><td>LLM Tool</td><td>把 Function / 查询暴露成 LLM 可调用的工具</td></tr>
+              <tr><td>AIP Logic Blocks</td><td>用可视化积木块编排 LLM 的推理步骤</td></tr>
+              <tr><td>Agent Plan</td><td>Agent 的任务规划：把目标拆解成一系列工具调用</td></tr>
+              <tr><td>AI Action Review</td><td>AI 建议的动作<strong>不直接执行</strong>，先进入人工复核队列</td></tr>
+              <tr><td>AIP Evals</td><td>对 AI 输出做评测，量化质量</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <strong>这里体现的工程哲学</strong>
+          从「AI 直接执行」退一步，变成<strong>「AI 出建议 + 人复核 + 可执行」</strong>。这在企业场景里不是保守，而是让系统能够真正上线的必要条件。
+        </div>
+
+        <h3>应用与开发</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>组件</th><th>定位</th></tr></thead>
+            <tbody>
+              <tr><td>Foundry</td><td>数据与本体底座</td></tr>
+              <tr><td>AIP</td><td>AI 分析推理底座</td></tr>
+              <tr><td>Workshop</td><td>低代码应用搭建（界面、交互、操作）</td></tr>
+              <tr><td>Pipeline Builder</td><td>数据管道与自定义函数</td></tr>
+              <tr><td>Simulation Sandbox</td><td>模拟沙箱（Scenario 的运行环境）</td></tr>
+              <tr><td>OSDK（Ontology SDK）</td><td><strong>类型安全的开发者接口</strong>：TypeScript / Python / Java，让开发者用代码直接操作本体</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>OSDK 是「本体即 API」这一理念的落地</strong>：本体模型一旦定义好，前后端代码可以自动获得强类型的对象访问与操作接口。这一点对工程效率的影响，往往被严重低估。</p>
+
+        <h3>落地路线与边界</h3>
+        <pre>① 数据接入与语义建模  →  ② 单场景验证（选一个痛点最深的场景）
+        ↓
+③ 动作与工作流打通    →  ④ 动态层沉淀（Scenario 模板化 → 自动化）</pre>
+
+        <p><strong>必须诚实承认的能力边界：</strong></p>
+        <ul>
+          <li>Palantir <strong>不做</strong>业务流程本身，它不替换 ERP / SCM；</li>
+          <li>它的效果<strong>强依赖</strong>企业的数据质量，以及业务经验能否被显性化；</li>
+          <li><strong>企业私有业务经验不显性化，光建一个本体模型就想让它代替核心业务专家 —— 这是瞎扯淡。</strong></li>
+        </ul>
+
+        <div class="quote">
+          <b>本体论结合 AI 的分析推理，一定不能是无中生有，而只能是举一反三。</b><br><br>
+          你前面给出足够的经验积累给 AI，AI 在充分理解场景规则后，后续才能真正完全自主化分析推理。
+        </div>
+      </section>
+
+      <!-- ================= 6 · 自研框架 ================= -->
+      <section class="sec own-chap" id="c6">
+        <span class="own-badge">自研框架 · 非 Palantir 官方</span>
+        <h2><em>Chapter 06 · 独立章节</em>一套自研的本体建模规范：从三模型到十一大模型</h2>
+
+        <div class="warn">
+          <strong>本章说明</strong>
+          本章介绍的建模规范，是参考文章作者<strong>「人月聊IT」个人自研的框架</strong>，不是 Palantir 官方方法论，也不是 W3C 标准。它参考了 Palantir 本体建模、经典本体论建模（OWL / OOAD），并结合作者本人一年多的实际项目反复迭代而成。
+          原作者自述：「这套规范是我过去一年多在 actual 项目中不断迭代出来的，<strong>它不一定完美，但确实是『用过、踩过坑、改过』的东西。</strong>」规范已开源：<code>github.com/sharptoolbox</code>
+        </div>
+
+        <p>之所以单独成章完整收录，是因为它提供了一个<strong>从工程视角补齐 Palantir 未展开部分</strong>的完整样本：Palantir 讲了「本体能做什么」，这套规范讲了「一个 AI 原生系统的本体到底该由哪些模型组成」。</p>
+
+        <h3>缘起：传统需求文档太「扁平」</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>传统需求文档能说的</th><th>它说不出来的</th></tr></thead>
+            <tbody>
+              <tr><td>系统要做什么</td><td>业务对象之间到底是什么关系</td></tr>
+              <tr><td>有哪些功能</td><td>一个操作发生后会触发什么连锁反应</td></tr>
+              <tr><td>输入输出是什么</td><td>哪些规则是跨对象的、哪些是局部的</td></tr>
+              <tr><td>—</td><td>系统边界的接口契约是什么</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>目标因此定为三条：能承载经典本体论的<strong>语义严谨性</strong>；能对接实际的<strong>软件工程实践</strong>；能被 <strong>AI 理解并执行</strong>。</p>
+
+        <h3>六个版本的演进</h3>
+        <div class="tl">
+          <div class="tl-i">
+            <div class="v">V1</div>
+            <h4>三模型：对象 · 行为 · 规则</h4>
+            <p><b>M1 对象模型</b>覆盖实体、属性、关系、约束 —— 基本对应 OWL / OWL 2 的核心。关键理念：<b>描述的是「业务对象」，不是「数据库表」</b>。建模时不要想表怎么拆，先想把业务搞清楚；表拆分交给后面的 MM 映射模型。<br>
+            <b>M2 行为模型</b>是「领域行为」而不是 CRUD：「确认支付」「提交合同」「激活客户」。每个行为有原子性、前后置条件、规则引用、事件产生。<br>
+            <b>M3 规则模型</b>可映射到 Function，但区分两层：简单约束（OWL 能表达）与复合规则（如「合同所有开票金额之和 = 合同总金额」，需 SWRL / SHACL 级表达力）。</p>
+          </div>
+          <div class="tl-i">
+            <div class="v">V2</div>
+            <h4>事件模型 + 对象模型升级为 DDD 领域对象</h4>
+            <p>对象引入 DDD 分类：<b>聚合根</b>（业务完整性边界，全局唯一标识）、<b>实体</b>（聚合内子对象，聚合内唯一标识）、<b>值对象</b>（无标识不可变）。订单 + 订单明细是同一聚合；订单 + 客户是独立聚合 —— 这个区分直接决定事务边界在哪里。<br>
+            <b>ME 事件模型</b>用消息中间件机制解耦：「确认支付」成功后不直接调用「扣减库存」，而是发布 <code>Order.PaymentConfirmed</code>，库存模块订阅后自行决定。事件模型还有一个实用场景：<b>作为大模型「思考链」中的标准化节点</b> —— 每完成一步推理就发布一个事实事件。</p>
+          </div>
+          <div class="tl-i">
+            <div class="v">V3</div>
+            <h4>场景模型 + 主体模型</h4>
+            <p><b>M4 场景模型</b>核心思路类似 SOA：任何业务问题就是一个场景，由跨对象的行为与规则灵活组合编排去解决。它回答的是「你整个本体模型究竟怎么用」。在 Palantir 里对应 What-if 假设分析与基于分析完成的 Workflow 定义。<br>
+            <b>M5 主体模型</b>定义参与者、角色、权限边界。看起来传统，但有特殊定位：它是一个<b>横切层，贯穿 L1 到 L6</b> —— 行为要声明所需权限、流程人工活动要引用审批角色、UI 元素要控制可见性，全部指向 M5。</p>
+          </div>
+          <div class="tl-i">
+            <div class="v">V4</div>
+            <h4>流程模型 + 查询统计与报表模型</h4>
+            <p><b>M6 流程模型</b>从场景模型里拆出来，因为审批流有自己特点：人工参与、退回驳回、角色泳道、网关分支。它统一承载两类流程 —— <b>COLLABORATION</b>（端到端业务协同流）与 <b>APPROVAL</b>（审批流）。<br>
+            <b>M7 查询统计与报表模型</b>遵循<b>读写分离</b>原则：只与 M1、M2 直接关联，不引用 M3 / ME / M4 / M5 / M6。目的是避免把复杂查询逻辑塞进原子行为或业务规则里。</p>
+          </div>
+          <div class="tl-i">
+            <div class="v">V5</div>
+            <h4>映射模型 + UI 模型</h4>
+            <p><b>MM 对象-数据表映射模型</b>解决遗留系统问题：聚合根 → 主表，子实体 → 从表，值对象 → 主表字段平铺或 JSON 列，复合对象 → 一对多映射到多张表。职责边界：<b>MM 只表达对应关系</b>，索引、分区、迁移脚本不进入 MM。<br>
+            <b>MU UI 模型</b>承担特殊角色：<b>入口层 + 全链路追溯层</b>，定义了从用户点击到系统完成的完整调用链。</p>
+          </div>
+          <div class="tl-i">
+            <div class="v">V6</div>
+            <h4>接口模型 —— 十一大模型完整版</h4>
+            <p><b>MI 接口模型</b>把系统边界两侧的接口契约独立成模：名称、方向（提供方 / 依赖方）、输入参数、输出格式、返回规则。它<b>只描述契约，不承载行为执行语义或事件投递语义</b> —— 接口的原子执行由 M2 的 <code>triggerType=EXTERNAL</code> 行为承接，MI 与这些模型通过稳定 ID 双向引用。</p>
+          </div>
+        </div>
+
+        <h3>MU 定义的完整调用链</h3>
+        <pre>用户操作（屏幕 / 元素 / 事件）
+  → VALIDATE                    （M3 规则，UI 前置校验）
+  → BEHAVIOR_CALL               （M2 行为，操作 M1 对象）
+  → EVENT_EMIT                  （ME 事实事件）
+  → SCENARIO_CALL               （M4 跨对象协同）
+  → REPORT_CALL / QUERY_REPORT  （M7 输出）
+  → NAVIGATE                    （MU 屏幕跳转）</pre>
+        <p>这意味着：从用户点击一个按钮开始，到系统完成所有处理，<strong>整条链路都是可追溯的</strong>。每个实现单元都可以溯源到具体的本体模型定义。</p>
+
+        <h3>十一大模型总表</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>编号</th><th>模型名称</th><th>核心职责</th><th>层级</th></tr></thead>
+            <tbody>
+              <tr><td>M1</td><td>对象模型</td><td>实体、属性、关系、约束</td><td>L1 领域对象层</td></tr>
+              <tr><td>M2</td><td>行为模型</td><td>原子行为方法、触发条件、前后置约束</td><td>L2 原子能力层</td></tr>
+              <tr><td>M3</td><td>规则模型</td><td>跨对象 / 跨行为的业务决策规则</td><td>L3 解耦决策层</td></tr>
+              <tr><td>ME</td><td>事件模型</td><td>业务事件、生产者 / 订阅者、事件链路</td><td>L3 解耦决策层</td></tr>
+              <tr><td>M4</td><td>场景模型</td><td>跨对象事件协同的业务语义链</td><td>L4 编排协同层</td></tr>
+              <tr><td>M5</td><td>主体模型</td><td>参与者、角色、权限边界</td><td><strong>横切层</strong></td></tr>
+              <tr><td>M6</td><td>流程模型</td><td>端到端协同流 + 审批流</td><td>L4 编排协同层</td></tr>
+              <tr><td>M7</td><td>查询统计与报表模型</td><td>跨对象查询、统计分析、固定报表</td><td><strong>旁路层</strong></td></tr>
+              <tr><td>MU</td><td>UI 模型</td><td>屏幕、界面元素、导航、调用链</td><td>L6 交互入口层</td></tr>
+              <tr><td>MM</td><td>对象-数据表映射模型</td><td>对象到数据库表的持久化映射</td><td>L0 持久化映射层</td></tr>
+              <tr><td>MI</td><td>接口模型</td><td>系统边界的接口契约</td><td>L5 集成边界层</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>分层架构</h3>
+        <div class="stack">
+          <div class="layer"><span class="code">L6</span><span class="nm">MU · UI 模型</span><span class="ds">交互入口层 —— 菜单、界面、导航、调用链</span></div>
+          <div class="layer"><span class="code">L5</span><span class="nm">MI · 接口模型</span><span class="ds">集成边界层 —— 跨领域本体协同的接口契约</span></div>
+          <div class="layer"><span class="code">L4</span><span class="nm">M6 流程 + M4 场景</span><span class="ds">编排协同层 —— 场景是对象、行为、规则的组装编排</span></div>
+          <div class="layer"><span class="code">L3</span><span class="nm">ME 事件 + M3 规则</span><span class="ds">解耦决策层 —— 场景业务协同如何解耦</span></div>
+          <div class="layer"><span class="code">L2</span><span class="nm">M2 · 行为模型</span><span class="ds">原子能力层 —— 领域对象的原子行为方法，构成领域服务层</span></div>
+          <div class="layer"><span class="code">L1</span><span class="nm">M1 · 对象模型</span><span class="ds">领域对象层 —— 聚合根、子实体、值对象、不变性约束、数据字典</span></div>
+          <div class="layer"><span class="code">L0</span><span class="nm">MM · 映射模型</span><span class="ds">持久化映射层 —— 对象到数据库表的映射</span></div>
+          <div class="layer base"><span class="code">—</span><span class="nm">数据库 / 持久化存储</span><span class="ds">底层数据源</span></div>
+        </div>
+        <div class="side">
+          <div class="card">
+            <div class="k">横切层</div>
+            <h4>M5 主体模型</h4>
+            <p>贯穿 L1–L6，回答「谁能做什么」。</p>
+          </div>
+          <div class="card">
+            <div class="k">旁路层</div>
+            <h4>M7 查询统计与报表</h4>
+            <p>读模型旁路，仅与 M1、M2 直接关联。</p>
+          </div>
+        </div>
+
+        <h3>六个设计理念</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>理念</th><th>含义</th><th>对应模型</th></tr></thead>
+            <tbody>
+              <tr><td>正交分解</td><td>11 个模型各自承担单一职责，可独立演进</td><td>全部</td></tr>
+              <tr><td>事件解耦</td><td>用事件链替代长事务，避免强耦合的同步调用链</td><td>ME</td></tr>
+              <tr><td>流程分离</td><td>端到端协同流和审批流独立建模</td><td>M6</td></tr>
+              <tr><td>读写分离</td><td>跨对象查询统计独立建模，不污染写模型</td><td>M7</td></tr>
+              <tr><td>可追溯</td><td>从 UI 操作到领域对象变更，全链路可溯源</td><td>MU</td></tr>
+              <tr><td>可管控</td><td>权限与边界贯穿全层</td><td>M5 + MI</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>再加上两条价值主张：<strong>语义驱动</strong>（模型元素具有明确的业务语义，而非纯粹的技术描述）与 <strong>AI 友好</strong>（结构化的 YAML 元文件可以被大模型理解和执行）。</p>
+
+        <h3>多元输入 · 多种输出</h3>
+        <p>整套规范不只用于数据集成和数据分析，还可以用于 <strong>AI 原生应用从 0 到 1 的构建</strong>。原作者称之为「以核心本体模型驱动的本体一体化平台」：<strong>本体建模规范是灵魂，Harness 技术底座（记忆管理 / 存储管理 / 上下文会话管理）是骨骼，两者缺一不可。</strong></p>
+
+        <h4>四条建模路径</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>路径</th><th>输入</th><th>加工</th><th>输出</th></tr></thead>
+            <tbody>
+              <tr><td>从零构建</td><td>IT 系统原始需求</td><td>需求探索 → 需求文档 → 需求文档 + 本体建模规范</td><td>完整的 AI 原生系统</td></tr>
+              <tr><td>数据库逆向</td><td>已有数据库 + 设计文档</td><td>本体模型的逆向建模</td><td>完整的本体模型</td></tr>
+              <tr><td>源码逆向</td><td>源代码项目 + 逆向指导书</td><td>逆向工程</td><td>一套本体模型</td></tr>
+              <tr><td>文档抽取</td><td>企业文档资料库 + 知识库建模指导书</td><td>知识抽取</td><td>覆盖场景-概念-实体的本体模型</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>五种交付形态</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>形态</th><th>配方</th></tr></thead>
+            <tbody>
+              <tr><td>IT 应用</td><td>本体建模规范 + 开发指导书 → 完整的业务系统</td></tr>
+              <tr><td>Skills 技能包</td><td>本体建模规范 + 技术发布指导 → 技能包（如 <code>ontology-app-builder</code>）</td></tr>
+              <tr><td>MCP Server</td><td>本体建模规范 + 能力发布指南 → 对外提供模型驱动的能力接口</td></tr>
+              <tr><td>数据分析结果 / 报告</td><td>本体建模规范 + 数据库 + 数据分析指导书 → 分析结果或报告</td></tr>
+              <tr><td>知识问答</td><td>本体模型 → 加载到大模型上下文 → 智能问数</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>与 Palantir 的对应关系</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>本规范</th><th>Palantir 对应物</th><th>备注</th></tr></thead>
+            <tbody>
+              <tr><td>M1 对象模型</td><td>Object Type / Property / Link Type</td><td>静态语义部分高度对应</td></tr>
+              <tr><td>M2 行为模型</td><td>Action Type</td><td>本规范把「行为」与「事件」拆开，Action 把两者耦合在一个节点</td></tr>
+              <tr><td>M3 规则模型</td><td>Function</td><td>注意：Function 更多是「计算规则」而非「推理规则」</td></tr>
+              <tr><td>ME 事件模型</td><td>（隐含在 Action 中）</td><td>本规范显式拆出，是方法论增量</td></tr>
+              <tr><td>M4 场景模型</td><td>Scenario / What-if / Workflow</td><td>动态决策建模</td></tr>
+              <tr><td>M5 主体模型</td><td>Object Permission / Dynamic Policy</td><td>横切</td></tr>
+              <tr><td>M6 流程模型</td><td>Workflow &amp; Automations</td><td>审批流 + 协同流</td></tr>
+              <tr><td>M7 查询统计与报表</td><td>Object Set 查询 / 分析应用</td><td>旁路读模型</td></tr>
+              <tr><td>MM 映射模型</td><td>数据映射 / 集成层</td><td>落地关键</td></tr>
+              <tr><td>MU UI 模型</td><td>Workshop</td><td>交互与调用链</td></tr>
+              <tr><td>MI 接口模型</td><td>外部系统集成</td><td>边界契约</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <strong>注意一个细节</strong>
+          原作者强调：「我个人本体建模规范里包括了规则建模和场景建模，映射到 Palantir，实际这两者大部分内容都纳入到了<strong>动态建模</strong>里面。」
+          也就是说，Palantir 的三层与本规范的十一大模型<strong>不是一一对应，而是粒度不同、切分方式不同</strong>。理解这个差异本身，就是理解「建模规范是设计选择，不是唯一答案」的好例子。
+        </div>
+      </section>
+
+      <!-- ================= 7 ================= -->
+      <section class="sec" id="c7">
+        <h2><em>Chapter 07</em>项目实践</h2>
+
+        <h3>需求探索：怎么问出一个本体</h3>
+        <p>核心难点：<strong>业务方不会用本体的语言跟你说话。</strong>基本流程是把「业务口语」逐层翻译成「模型元素」：</p>
+        <pre>业务访谈（口语） → 场景识别 → 业务场景清单
+                 → 概念抽取 → 业务概念与术语表
+                 → 关系与约束梳理 → 对象 / 关系 / 规则候选集
+                 → 完整性判定 → 结构化需求文档 + 本体模型草稿</pre>
+
+        <p>一个实用的提问框架 —— 把「功能」问题改造成「本体」问题：</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>不要问</th><th>要问</th></tr></thead>
+            <tbody>
+              <tr><td>这个系统有哪些功能？</td><td>这个业务里<strong>有哪些东西</strong>（对象）？</td></tr>
+              <tr><td>用户怎么操作？</td><td>谁能对<strong>这些东西</strong>做<strong>什么动作</strong>？</td></tr>
+              <tr><td>有什么业务规则？</td><td>做这个动作<strong>之前必须满足什么</strong>？做完<strong>之后什么会变</strong>？</td></tr>
+              <tr><td>有什么流程？</td><td>一个动作发生后，<strong>谁会跟着动</strong>？（事件链）</td></tr>
+              <tr><td>报表要什么字段？</td><td>你要回答的是<strong>什么问题</strong>？（读模型反推）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>完整性判定自检</h4>
+        <ul>
+          <li>每个对象都有明确的<strong>标识</strong>吗？（Primary Key / 聚合根）</li>
+          <li>每个对象都能在图上<strong>连到至少两条边</strong>吗？（只连一条边的，多半是分类节点）</li>
+          <li>每个行为都有<strong>前置条件和后置状态变化</strong>吗？</li>
+          <li>每条规则<strong>引用的是哪些对象</strong>？跨对象的规则找出来了吗？</li>
+          <li>有没有<strong>孤岛</strong>（某个对象谁都不引用）和<strong>断头路</strong>（某个行为没有任何触发来源）？</li>
+        </ul>
+
+        <h3>知识萃取：把老师傅的脑子掏出来</h3>
+        <p>这是整个项目里<strong>最难、最不可替代、也最容易被低估</strong>的一环。核心命题：<strong>企业私有业务经验不显性化，本体模型就是空壳。</strong></p>
+
+        <div class="tw">
+          <table>
+            <thead><tr><th>层</th><th>抽取什么</th><th>例子</th></tr></thead>
+            <tbody>
+              <tr><td>场景层</td><td>业务在什么情况下会面对什么问题</td><td>「关键物料供货中断」</td></tr>
+              <tr><td>概念层</td><td>这个问题涉及哪些业务概念</td><td>替代物料、安全库存、调货</td></tr>
+              <tr><td>实体层</td><td>具体的数据与对象实例</td><td>物料 #M-1024、供应商 #S-08</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>两轮萃取法：</strong></p>
+        <ol>
+          <li><strong>第一轮 · 广撒网。</strong>让专家描述「你平时怎么处理这类问题」，不打断、不纠正，记录完整叙述。</li>
+          <li><strong>第二轮 · 逼边界。</strong>针对第一轮里的每一个判断点追问：「什么情况下你会<em>不</em>这么做？」「如果 XXX 发生变化，你的做法会变吗？」「你怎么知道这个判断是对的？」</li>
+        </ol>
+        <div class="note">
+          <strong>关键认知</strong>
+          第一轮产出的是<strong>故事</strong>，第二轮产出的是<strong>可执行的决策规则</strong> —— 第二轮才是产出规则的地方。
+          AI 推理不能天马行空，必须基于已有的方法和认知框架约束。没有这个框架，AI 就是瞎推理 —— 虽然能得出结论，但可能严重脱离企业实际，置信度极低。
+        </div>
+
+        <h3>本体平台总体架构</h3>
+        <p>两种架构视角可以互补理解。</p>
+        <pre>┌────────────────────────────────────────────┐
+│ 应用/交互层    建模工作台 · 分析应用 · Agent │
+├────────────────────────────────────────────┤
+│ 编排引擎层     场景编排 · 工作流 · 计划调度  │
+├────────────────────────────────────────────┤
+│ 推理/能力层    规则引擎 · 图检索 · LLM 编排  │
+├────────────────────────────────────────────┤
+│ 数据/本体层    本体存储 · 对象库 · 数据集成  │
+└────────────────────────────────────────────┘
+     ┃            ┃            ┃
+  安全治理纵    知识萃取纵    工程效能纵</pre>
+
+        <div class="tw">
+          <table>
+            <thead><tr><th>面</th><th>组成</th><th>职责</th></tr></thead>
+            <tbody>
+              <tr><td>控制面</td><td>约 10 个模块</td><td>定义、配置、编排、治理、监控 —— <strong>决定「做什么」</strong></td></tr>
+              <tr><td>执行面</td><td>约 18 个引擎</td><td>实际执行计算、检索、推理、调用 —— <strong>负责「做出来」</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>三个关键机制：</strong></p>
+        <ul>
+          <li><strong>能力注册表</strong>：所有可用能力（Function、查询、外部接口）在此登记，供编排层发现和调用；</li>
+          <li><strong>场景配方库</strong>：把验证过的场景解法沉淀成可复用的「配方」；</li>
+          <li><strong>执行计划 DAG</strong>：单条执行计划内部<strong>不允许有环</strong>；长期回路放在<strong>事件总线</strong>上 —— 这是保证系统可终止、可调试的关键设计。</li>
+        </ul>
+
+        <h3>场景驱动的动态组合与编排</h3>
+        <pre>Atom（原子能力）   对象查询 · 原子行为 · 规则判定 · 外部接口
+   ↓ 组合
+Recipe（场景配方） 「库存周转率下降」= 查指标 → 定位异常对象
+                    → 枚举候选方案 → 沙箱模拟比对 → 输出建议
+   ↓ 编排
+Plan（执行计划 DAG） 节点 = 能力调用；边 = 数据依赖
+                    事件总线处理跨计划的长周期回路</pre>
+
+        <h3>工程实现要点</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>层</th><th>选型</th></tr></thead>
+            <tbody>
+              <tr><td>后端</td><td>Python（Flask / FastAPI）</td></tr>
+              <tr><td>前端</td><td>React 18 + TypeScript + Vite + Tailwind</td></tr>
+              <tr><td>存储</td><td>SQLite（原型）/ MySQL（生产）</td></tr>
+              <tr><td>可视化</td><td>ECharts、D3.js、AntV X6（流程图）、Mermaid</td></tr>
+              <tr><td>交互</td><td>SSE（流式输出）</td></tr>
+              <tr><td>模型</td><td>DeepSeek 系列 API，Function Calling（<strong>限制 ≤ 5 轮</strong>）</td></tr>
+              <tr><td>元数据</td><td>YAML（本体模型文件）、Markdown（指导书）</td></tr>
+              <tr><td>接口</td><td>MCP、REST</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>几个有意思的工程决策：<strong>Function Calling 限 5 轮</strong>（防止 LLM 陷入工具调用死循环，同时控制延迟和成本）；<strong>模型文件用 YAML</strong>（人可读、可 diff、可版本管理，同时 LLM 容易理解和生成）；<strong>指导书用 Markdown</strong>（把行业经验写成可直接塞进上下文的文档，而不是藏在代码里）。</p>
+
+        <h3>五个案例</h3>
+        <div class="cards c2">
+          <div class="card">
+            <div class="k">案例 01 · 供应链</div>
+            <h4>库存周转率预警与决策回写</h4>
+            <p><strong>做法两步：</strong>① 传统部分 —— 采集多方数据 → ODS → 宽表 → 指标计算（数据中台即可完成）；② 本体部分 —— 执行动态模型 → 触发动态计算 → <strong>形成回写策略回写采购系统</strong>。</p>
+            <p>模拟三种决策意见：引入替代物料 / 调货 / 调整安全库存。实际场景中由人工审阅三种方案后选一条最优决策回写。</p>
+            <p><strong>关键：回写本身没有技术含量，重点是「模型 + 数据 + 大模型推理 → 得出比有经验员工更优的改进建议」。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">案例 02 · 电商</div>
+            <h4>自动化运营与「举一反三」</h4>
+            <p><strong>客户困惑：</strong>我们已经用 AI + 精确代码实现了自动化推荐、自动补货，那本体论还有什么用？</p>
+            <p><strong>把问题反过来问：</strong>自动化运营涉及补货、调货、预警、客服、推荐、数据分析……是不是每出现一个新场景，你都要新开发一个代码程序？</p>
+            <p><strong>目标：</strong>给 AI 列举 5 到 10 种已有场景的做法后，AI 能基于底层对象模型与行为规则，自动推理出新场景的应对方法。<strong>这才是举一反三。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">案例 03 · 物流</div>
+            <h4>经营分析原型</h4>
+            <p>指标异常告警 → 沿本体关系上溯定位异常对象（哪条线路、哪类货品、哪个客户）→ 沿链路回溯定位具体行为 / 事件过程 → 在沙箱中模拟不同调整策略 → 输出可解释的归因结论与改进建议。</p>
+            <p><strong>原作者强调：「从结果追溯到过程」还不够，还要能回答「我该如何解决」。要的是改进建议，而不是仅仅知道问题本身。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">案例 04 · 企业架构</div>
+            <h4>架构文档 → 本体模型</h4>
+            <p><strong>输入：</strong>企业架构文档、业务需求文档等非结构化资料。</p>
+            <p><strong>过程：</strong>知识抽取 → 场景 / 概念 / 实体三层建模 → 与既有数据库勾稽。</p>
+            <p><strong>输出：</strong>覆盖 LTC（线索到现金）等端到端流程的本体模型。<strong>把散落在文档里、从未被结构化表达的流程知识，变成 AI 可推理的语义网络。</strong></p>
+          </div>
+          <div class="card">
+            <div class="k">案例 05 · 合同 / 制造</div>
+            <h4>规则模型的典型战场</h4>
+            <p>· 「合同所有开票金额之和 = 合同总金额」—— 跨对象的复合约束<br>
+            · 「累计收款达到合同总额时自动关闭合同」—— 事件驱动规则<br>
+            · 「批次质量不合格时触发召回流程」—— 事件链 + 流程模型</p>
+          </div>
+        </div>
+
+        <h3>五条红线</h3>
+        <p>做本体 + AI 分析推理的项目，这五条必须在设计阶段就写死：</p>
+        <div class="redlines">
+          <div class="rl"><span class="i">01</span><div><b>LLM 不生成数字，只引用数字</b><span>数字必须来自确定性计算，LLM 只做组织与表达</span></div></div>
+          <div class="rl"><span class="i">02</span><div><b>本体要精确，但不必完备</b><span>追求完备会陷入无限建模；够用即可迭代</span></div></div>
+          <div class="rl"><span class="i">03</span><div><b>SQL 可溯源</b><span>每一个数字都要能追到它的查询语句</span></div></div>
+          <div class="rl"><span class="i">04</span><div><b>推理过程透明</b><span>用户要能看到 AI 是怎么一步步得出结论的</span></div></div>
+          <div class="rl"><span class="i">05</span><div><b>降级策略明确，不做 Mock</b><span>能力不可用时明确降级并告知，绝不伪造结果</span></div></div>
+        </div>
+        <div class="warn">
+          <strong>第 5 条尤其重要</strong>
+          宁可告诉用户「这个能力暂时不可用」，也不要返回一个看起来合理但是编的答案。在企业场景里，<strong>一次伪造的结论比十次「不可用」的破坏力大得多</strong>。
+        </div>
+
+        <h3>三层公式</h3>
+        <div class="formula">
+          <div class="ft">可靠的数据分析报告</div>
+          <div class="ft">= <b>确定性计算</b> ＋ <b>语义锚定</b> ＋ <b>开放推理</b></div>
+          <div class="fb">
+            <div>
+              <div class="n">SQL + 统计算法</div>
+              <p>负责数字准确。缺了它，数字靠不住，报告不可信。</p>
+            </div>
+            <div>
+              <div class="n">本体模型</div>
+              <p>负责概念不歧义、对象不指错。缺了它，算得对但指错了东西。</p>
+            </div>
+            <div>
+              <div class="n">LLM</div>
+              <p>负责归因、类比、常识补全、生成表达。缺了它，只有数据没有洞察。</p>
+            </div>
+          </div>
+        </div>
+        <p>与之配套的还有一句架构原则：<strong>「降级和编排，而不是抛弃。」</strong>当某一层能力不足时（比如没有可用的图数据库），降级到上一层能用的机制，而不是把整个方案推倒重来。</p>
+
+        <h3>常见失败模式</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>失败模式</th><th>症状</th><th>根因</th></tr></thead>
+            <tbody>
+              <tr><td>建成了目录树</td><td>模型是一级分类 → 二级分类 → 三级分类</td><td>没有识别对象之间的相互约束关系</td></tr>
+              <tr><td>只建了名词</td><td>有对象、有关系，没有行为、事件、场景</td><td>漏掉了「过程」，模型无法运转</td></tr>
+              <tr><td>规则全塞进行为</td><td>每个行为里一堆 if-else</td><td>没有独立的规则模型</td></tr>
+              <tr><td>查询逻辑污染写模型</td><td>为了报表改了核心业务规则</td><td>没有读写分离</td></tr>
+              <tr><td>权限事后补</td><td>上线前才发现要加权限</td><td>主体模型没有作为横切层</td></tr>
+              <tr><td>本体和系统两张皮</td><td>模型很漂亮，系统完全不按模型跑</td><td>缺少 MM 映射 / MU 调用链</td></tr>
+              <tr><td>AI 无约束推理</td><td>结论漂亮但脱离实际</td><td>没有把经验显性化为认知框架</td></tr>
+              <tr><td>追求完备</td><td>建模半年还没上线</td><td>违反了「精确但不必完备」</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>开源资源</h3>
+        <p>原作者在 GitHub 开源了本体建模规范与配套项目：<code>github.com/sharptoolbox</code>（共 9 个仓库）。建议的学习顺序：</p>
+        <ol>
+          <li>先读<strong>建模规范本体</strong>（十一大模型的 YAML 定义）—— 理解模型长什么样；</li>
+          <li>再看<strong>指导书类仓库</strong>（需求探索指导书、知识萃取规范、源码逆向指导书）—— 理解方法怎么用；</li>
+          <li>最后看<strong>平台实现仓库</strong> —— 理解工程怎么落地。</li>
+        </ol>
+      </section>
+
+      <!-- ================= 8 ================= -->
+      <section class="sec" id="c8">
+        <h2><em>Chapter 08</em>学习方法与常见误区</h2>
+
+        <h3>六条学习路线</h3>
+        <p>不同角色看到的是同一套东西的不同侧面。选一条主线，其余作为补充：</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>路线</th><th>适合谁</th><th>主线内容</th><th>关键产出</th></tr></thead>
+            <tbody>
+              <tr><td>A. 通识入门</td><td>业务方、管理者</td><td>本体论概念 → Palantir 价值主张 → 什么场景该用</td><td>能判断「我们该不该上」</td></tr>
+              <tr><td>B. 产品架构</td><td>架构师、产品经理</td><td>三层结构 → 语义 / 动能 / 动态 → Foundry / AIP 组件</td><td>能画出目标架构</td></tr>
+              <tr><td>C. AI / Agent</td><td>AI 工程师</td><td>范式断裂 → 三种推理切分 → Grounding / Function Calling / Agent Plan</td><td>能设计 LLM 与本体协同链路</td></tr>
+              <tr><td>D. 安全与治理</td><td>安全、合规</td><td>Object Permission → Dynamic Policy → Audit → AI Action Review</td><td>能设计可控可审的方案</td></tr>
+              <tr><td>E. 开发者</td><td>前后端工程师</td><td>OSDK → Workshop → Pipeline Builder → MCP 发布</td><td>能实现本体驱动的应用</td></tr>
+              <tr><td>F. 行业落地</td><td>交付、咨询</td><td>需求探索 → 知识萃取 → 场景配方 → 落地路线</td><td>能在客户现场跑通一个场景</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>推荐节奏：</strong></p>
+        <pre>第 1 周  A 通识 + 第二章（哲学源头，不求甚解，求「知道有这么回事」）
+第 2 周  B 产品架构 + 第四章（范式断裂，本周重点）
+第 3 周  C 或 E（按角色选）+ 第六章（自研规范，重点看分层与拆解思路）
+第 4 周  F 落地 + 第七章 + 在开源仓库里跑一个最小样例</pre>
+
+        <h3>十个常见误区</h3>
+        <ol>
+          <li><strong>把本体当成知识图谱。</strong>本体是 TBox（模式），知识图谱是 ABox（实例）。画了一堆实例不等于是本体。</li>
+          <li><strong>把本体建成目录树。</strong>树状结构用传统 OO 建模就够了，不需要本体。</li>
+          <li><strong>用 OWL / SWRL / SHACL 去逆向解释 Palantir。</strong>方法论上的时代错位 —— 两者是不同认识论立场的分岔。</li>
+          <li><strong>以为 Palantir 要替换现有系统。</strong>它是「水的搬运工」，最大化保留你已有的 IT 资产。</li>
+          <li><strong>以为回写是重点。</strong>回写没有技术含量；「得出比有经验员工更优的建议」才是。</li>
+          <li><strong>以为模型建好 AI 就能自主决策。</strong>企业私有经验不显性化，模型代替不了业务专家。</li>
+          <li><strong>以为本体要建得完备才能用。</strong>精确但不必完备 —— 完备是建模者的执念，不是业务的需求。</li>
+          <li><strong>只建名词不建动词。</strong>没有行为、事件、场景，模型无法运转，AI 也推理不出东西。</li>
+          <li><strong>让 LLM 生成数字。</strong>数字必须来自确定性计算，LLM 只做组织与表达。</li>
+          <li><strong>能力不可用时返回编造的答案。</strong>明确降级并告知，绝不 Mock。</li>
+        </ol>
+
+        <h3>自检清单</h3>
+        <h4>评估一个本体模型（建得对不对）</h4>
+        <ul>
+          <li>是<strong>网状</strong>而不是树状吗？对象之间有相互约束回路吗？</li>
+          <li>每个对象都有<strong>明确标识</strong>吗？有没有<strong>孤岛对象</strong>和<strong>断头路行为</strong>？</li>
+          <li>行为有前置条件和后置状态变化吗？还是只是 CRUD？</li>
+          <li>规则里有没有<strong>跨对象</strong>的复合规则？行为与事件<strong>拆开</strong>了吗？</li>
+          <li>场景是<strong>显式建模</strong>的，还是留给 AI 自己发挥的？</li>
+          <li>权限是<strong>横切</strong>在模型里的，还是事后补的？</li>
+        </ul>
+
+        <h4>评估一个本体项目（该不该做）</h4>
+        <ul>
+          <li>这个痛点是传统 IT 应用<strong>难以解决</strong>的吗？</li>
+          <li>是 AI 因为<strong>幻觉太重</strong>而无法满足的吗？是<strong>极度依赖有经验员工</strong>的吗？</li>
+          <li>这个场景允许<strong>不确定性</strong>和<strong>一定置信度</strong>吗？是<strong>多目标平衡</strong>而非单目标最优吗？</li>
+          <li>企业的业务经验<strong>能被显性化</strong>吗？谁来做这件事？</li>
+        </ul>
+        <div class="note">
+          <strong>如果以上大部分是「否」</strong>
+          那这个问题可能<strong>不需要本体</strong> —— 用精确的程序代码就能解决。<strong>这是完全正确的结论，不要硬上本体。</strong>
+        </div>
+
+        <h3>最后三句话</h3>
+        <div class="quote">
+          <b>一、</b>本体论不是万能的。很多精确化的问题不需要本体就能很好地解决。<br><br>
+          <b>二、</b>本体 + AI 一定不能是无中生有，只能是举一反三。你给出足够的经验积累，AI 才能自主推理。<br><br>
+          <b>三、</b>本体没有消失，它只是从推理链条的终点退到了入口。这个角色迁移，正是本体论在 AI 原生架构里继续存活、而不是被 LLM 完全取代的关键路径。
+        </div>
+      </section>
+
+      <!-- ================= 附录 ================= -->
+      <section class="sec" id="ap">
+        <h2><em>Appendix</em>附录</h2>
+
+        <h3>术语表</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>术语</th><th>英文 / 全称</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td>本体</td><td>Ontology</td><td>共享概念模型的明确的形式化规范说明（Studer 1998）</td></tr>
+              <tr><td>TBox</td><td>Terminological Box</td><td>概念层：类、属性、关系、公理 —— 即「模式」</td></tr>
+              <tr><td>ABox</td><td>Assertional Box</td><td>实例层：具体断言 —— 即「知识图谱」</td></tr>
+              <tr><td>OWL</td><td>Web Ontology Language</td><td>W3C 本体语言标准；OWL 2 有 EL / QL / RL 三个 Profile</td></tr>
+              <tr><td>RDF</td><td>Resource Description Framework</td><td>三元组数据模型（主语-谓语-宾语）</td></tr>
+              <tr><td>SPARQL</td><td>SPARQL Protocol and RDF Query Language</td><td>面向 RDF 的查询语言</td></tr>
+              <tr><td>SWRL</td><td>Semantic Web Rule Language</td><td>在 OWL 之上写规则，能推导新事实</td></tr>
+              <tr><td>SHACL</td><td>Shapes Constraint Language</td><td>2017 W3C 推荐标准；闭世界下的形状约束校验</td></tr>
+              <tr><td>OWA / CWA</td><td>Open / Closed World Assumption</td><td>开放世界假设 / 封闭世界假设</td></tr>
+              <tr><td>DL</td><td>Description Logic</td><td>描述逻辑，OWL 的形式语义基础</td></tr>
+              <tr><td>演绎推理</td><td>Deduction</td><td>一般 → 特殊，结论必然</td></tr>
+              <tr><td>溯因推理</td><td>Abduction</td><td>结果 → 最可能原因，结论或然、带置信度</td></tr>
+              <tr><td>OOA / OOD</td><td>Object-Oriented Analysis / Design</td><td>面向对象分析与设计</td></tr>
+              <tr><td>DDD</td><td>Domain-Driven Design</td><td>领域驱动设计；聚合根 / 实体 / 值对象</td></tr>
+              <tr><td>CQRS</td><td>Command Query Responsibility Segregation</td><td>命令查询职责分离</td></tr>
+              <tr><td>EDA</td><td>Event-Driven Architecture</td><td>事件驱动架构</td></tr>
+              <tr><td>FDE</td><td>Forward Deployed Engineer</td><td>前置交付工程师</td></tr>
+              <tr><td>OSDK</td><td>Ontology SDK</td><td>Palantir 的类型安全本体开发接口（TS / Python / Java）</td></tr>
+              <tr><td>Harness</td><td>—</td><td>技术底座：记忆管理、存储管理、上下文会话管理</td></tr>
+              <tr><td>MCP</td><td>Model Context Protocol</td><td>让 LLM 应用调用外部能力的协议</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>参考文章清单</h3>
+        <p>本文整理的原始素材来自 <code>refer.md</code> 中列出的 28 条链接 —— <strong>其中第 27、28 条为同一篇文章（URL 相同），实际为 27 篇</strong>。按主题分组：</p>
+
+        <details>
+          <summary>展开 27 篇参考文章分组</summary>
+          <div class="dbody">
+            <p><strong>A. 本体论概念与哲学（4 篇）</strong><br>从知识图谱到本体论 · 对本体论实践的再思考 · 一定要抛弃传统本体建模 · 西方哲学核心命题</p>
+            <p style="margin-top:12px"><strong>B. 经典本体论与推理（2 篇）</strong><br>用经典本体论工具栈去逆向解释 Palantir · 经典本体模型推理问题</p>
+            <p style="margin-top:12px"><strong>C. Palantir 本体论思想（4 篇）</strong><br>Palantir 本体论思想 · Palantir 本体论和产品知识体系架构 · 本体论和 AI 大模型 02 · 本体论和 AI 大模型 03</p>
+            <p style="margin-top:12px"><strong>D. 建模规范与演进（3 篇）</strong><br>从三模型到十一大模型的发展演进之路 · 核心领域知识体系构建 · 知识萃取规范指南</p>
+            <p style="margin-top:12px"><strong>E. 平台架构与工程实现（5 篇）</strong><br>本体平台总体架构 · 总体架构 02 动态组合编排 · 总体架构 03 业务需求 + 技术架构 · 架构优化和功能改进 · 企业架构文档转本体模型</p>
+            <p style="margin-top:12px"><strong>F. AI 原生应用与 Agent（4 篇）</strong><br>本体 + AI 驱动的 AI 智能体工厂 · 本体驱动的 AI 原生应用构建 · 本体和 AI 的关系 · Graph Engineering</p>
+            <p style="margin-top:12px"><strong>G. 行业案例与需求方法（4 篇）</strong><br>物流行业原型案例 · AI 辅助需求探索 · 必须搞清两个关键场景</p>
+            <p style="margin-top:12px"><strong>H. 资源与可视化（2 篇）</strong><br>开源项目参考 · 业务领域本体模型和知识图谱可视化</p>
+            <p style="margin-top:12px"><strong>I. 知识工程（1 篇）</strong><br>企业级知识工程</p>
+          </div>
+        </details>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="foot">
+    <p>本文为学习科普资料，<strong>不是 Palantir 官方文档</strong>，产品细节请以官方为准。第六章的建模规范为原作者个人自研框架，已在文中明确标注。文中标注「作者观点」处为原作者的个人判断，读者可自行验证与取用。</p>
+    <p>内容整理自 27 篇中文技术文章（作者「人月聊IT」公众号「本体论与 AI 大模型」系列为主）。配套 Markdown 底稿：<code>pltr-ontology-learning.md</code>。</p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  /* theme toggle */
+  var btn = document.getElementById('theme');
+  var label = document.getElementById('theme-label');
+  var root = document.documentElement;
+  var KEY = 'pltr-onto-theme';
+
+  function read() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+  function write(v) {
+    try { if (v) localStorage.setItem(KEY, v); else localStorage.removeItem(KEY); } catch (e) {}
+  }
+  function apply(v) {
+    if (v === 'dark' || v === 'light') { root.setAttribute('data-theme', v); }
+    else { root.removeAttribute('data-theme'); }
+    if (label) {
+      label.textContent = v === 'dark' ? '深色' : v === 'light' ? '浅色' : '跟随系统';
+    }
+  }
+  apply(read());
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var next = cur === 'dark' ? 'light' : 'dark';
+      write(next);
+      apply(next);
+    });
+  }
+
+  /* toc scrollspy */
+  var links = [].slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) {
+    var id = (a.getAttribute('href') || '').slice(1);
+    var el = id && document.getElementById(id);
+    if (el) map[id] = a;
+  });
+  var ids = Object.keys(map);
+  if (!ids.length) return;
+
+  var visible = {};
+  function refresh() {
+    var best = null;
+    ids.forEach(function (id) {
+      if (!visible[id]) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (!best || el.getBoundingClientRect().top < document.getElementById(best).getBoundingClientRect().top) best = id;
+    });
+    links.forEach(function (a) { a.classList.remove('on'); });
+    if (best) map[best].classList.add('on');
+  }
+
+  if ('IntersectionObserver' in window) {
+    var ob = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { visible[en.target.id] = en.isIntersecting; });
+      refresh();
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    ids.forEach(function (id) { var el = document.getElementById(id); if (el) ob.observe(el); });
+  } else {
+    links.forEach(function (a) { a.classList.add('on'); });
+  }
+})();
+</script>
+
+</body>
+</html>
